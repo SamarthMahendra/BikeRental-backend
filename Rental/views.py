@@ -9,6 +9,9 @@ from rest_framework.response import Response
 import jwt
 from .models import User
 
+# import mysql connector
+from .sqlconnector import MySQLConnector
+
 # write a decorator to check if the user is authenticated
 def is_authenticated(func):
     def wrapper(request, *args, **kwargs):
@@ -133,7 +136,15 @@ def get_all_users(request):
             'email': user.email
         })
 
-    # return the response
+    # # chek sql connection
+    # sql = MySQLConnector()
+    # connection = sql.get_connection()
+    # cursor = connection.cursor()
+    # # if the connection is established then print the message
+    # if connection.is_connected():
+    #     db_Info = connection.get_server_info()
+    #     data['message'] = "Connected to MySQL Server version ", db_Info
+    # # return the response
     return Response(data)
 
 
