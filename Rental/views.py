@@ -12,6 +12,8 @@ from .models import User
 # import mysql connector
 from .sqlconnector import MySQLConnector
 
+from .create_table_script import create_tables
+
 # write a decorator to check if the user is authenticated
 def is_authenticated(func):
     def wrapper(request, *args, **kwargs):
@@ -22,8 +24,16 @@ def is_authenticated(func):
         token = token.split(' ')[1]
 
         # check if the token exists
-        user = User.objects.filter(token=token).first()
-        if not user:
+        query = """
+        SELECT * FROM User WHERE token = '{token}';"""
+        query = query.format(token=token)
+        conn = MySQLConnector()
+        connection = conn.get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query)
+        result = cursor.fetchall()
+
+        if not result:
             return Response({'error': 'Invalid token'})
 
         return func(request, *args, **kwargs)
@@ -39,23 +49,29 @@ def signup(request):
     data = request.data
 
     # check if the user already exists
-    user = User.objects.filter(email=data['email']).first()
-    if user:
+    query = """
+    SELECT * FROM User WHERE email = '{email}';"""
+    query = query.format(email=data['email'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    if result:
         return Response({'error': 'User already exists'})
 
-    # create a user
-    user = User.objects.create(
-        username=data['username'],
-        email=data['email'],
-        password=data['password']
-    )
-
     # create a token
-    token = jwt.encode({'id': user.id}, 'SECRET_KEY', algorithm='HS256')
+    token = jwt.encode({'name': data["username"]}, 'SECRET_KEY', algorithm='HS256')
 
-    # save the token
-    user.token = token
-    user.save()
+    # create a user
+    query = """
+    INSERT INTO User (username, email, password, token) VALUES ('{username}', '{email}', '{password}', '{token}');"""
+    query = query.format(username=data['username'], email=data['email'], password=data['password'], token=token)
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
 
     # return the response
     return Response({'token': token})
@@ -71,20 +87,36 @@ def login(request):
     data = request.data
 
     # check if the user exists
-    user = User.objects.filter(email=data['email']).first()
-    if not user:
+    # check if the user already exists
+    query = """
+        SELECT username,
+        password,
+        token
+         FROM User WHERE email = '{email}';"""
+    query = query.format(email=data['email'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    if not result:
         return Response({'error': 'User does not exist'})
 
     # check if the password is correct
-    if data['password'] != user.password:
+    if data['password'] !=  result[0][1]:
         return Response({'error': 'Invalid password'})
 
     # create a token
-    token = jwt.encode({'id': user.id}, 'SECRET_KEY', algorithm='HS256')
+    token = jwt.encode({'name': result[0][0]}, 'SECRET_KEY', algorithm='HS256')
 
     # save the token
-    user.token = token
-    user.save()
+    query = """
+    UPDATE User SET token = '{token}' WHERE email = '{email}';"""
+    query = query.format(token=token, email=data['email'])
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
 
     # return the response
     return Response({'token': token})
@@ -103,15 +135,27 @@ def logout(request):
 
     # remove bearer from the token
     token = token.split(' ')[1]
-    user_id = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['id']
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
     # check if the token exists
-    user = User.objects.filter(id=user_id).first()
-    if not user:
+    query = """
+    SELECT * FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    if not result:
         return Response({'error': 'Invalid token'})
 
     # remove the token
-    user.token = ''
-    user.save()
+    query = """
+    UPDATE User SET token = '' WHERE token = '{token}';"""
+    query = query.format(token=token)
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
 
     # return the response
     return Response({'message': 'User logged out'})
@@ -120,31 +164,10 @@ def logout(request):
 @api_view(['GET'])
 @is_authenticated
 def get_all_users(request):
-    """
-    This function is used to get all users
-    """
-
-    # get all users
-    users = User.objects.all()
 
     # create a list of users
-    data = []
-    for user in users:
-        data.append({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email
-        })
-
-    # # chek sql connection
-    # sql = MySQLConnector()
-    # connection = sql.get_connection()
-    # cursor = connection.cursor()
-    # # if the connection is established then print the message
-    # if connection.is_connected():
-    #     db_Info = connection.get_server_info()
-    #     data['message'] = "Connected to MySQL Server version ", db_Info
-    # # return the response
+    data = {}
+    data['status'] = "authenticated"
     return Response(data)
 
 
