@@ -75,7 +75,9 @@ WSGI_APPLICATION = 'BikeRental.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
+#         self.cnx = mysql.connector.connect(user="superuser", password="root@123",
+#                                       host="stock-bucket-indiaa.mysql.database.azure.com", port=3306,
+#                                       database="bikerental", ssl_ca="C:\\Users\\samar\\OneDrive\\Desktop\\Practice projects\\BikeRental\\Rental\\DigiCertGlobalRootCA.crt.pem", ssl_disabled=False)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',

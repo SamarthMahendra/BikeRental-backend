@@ -4,7 +4,7 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 # import json response from django rest framework
 from rest_framework.response import Response
-
+  
 # import jwt for token authentication
 import jwt
 from .models import User
@@ -161,13 +161,480 @@ def logout(request):
     return Response({'message': 'User logged out'})
 
 
+@api_view(['POST'])
+@is_authenticated
+def get_neareast_locations(request):
+    # write doc string with desc and params and return type
+    """
+    This function is used to get the nearest locations
+
+    Parameters:
+    request: request object
+
+    Returns:
+    Response: response object (list of locations)
+    """
+
+    # get lat and long from the request
+    data = request.data
+    lat = data['lat']
+    long = data['long']
+
+    query = """
+    SELECT * FROM Stations
+    LEFT JOIN Bike ON Stations.id = Bike.station_id
+    WHERE ( 6371 * acos( cos( radians({lat}) ) * cos( radians( lat ) ) * cos( radians( long ) - radians({long}) ) + sin( radians({lat}) ) * sin( radians( lat ) ) ) ) < 5;"""
+    query = query.format(lat=lat, long=long)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
+
+
+# api to check if user has minimum balance of 10usd
 @api_view(['GET'])
 @is_authenticated
-def get_all_users(request):
+def check_balance(request):
+    """
+    This function is used to check the balance of the user
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
 
-    # create a list of users
-    data = {}
-    data['status'] = "authenticated"
-    return Response(data)
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # check the balance
+    query = """
+    SELECT balance FROM BikeCard WHERE user_id = {user_id};"""
+    query = query.format(user_id=user_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    if result[0][0] < 10:
+        return Response({'error': 'Insufficient balance'})
+    return Response({'message': 'Sufficient balance'})
+
+
+@api_view(['POST'])
+@is_authenticated
+def book_bike(request):
+    """
+    This function is used to book a bike
+    """
+    # get the data from the request
+    data = request.data
+
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # book the bike
+    query = """
+    INSERT INTO BookingSchedule (user_id, bike_id, start_time, end_time) VALUES ({user_id}, {bike_id}, '{start_time}', '{end_time}');"""
+    query = query.format(user_id=user_id, bike_id=data['bike_id'], start_time=data['start_time'], end_time=data['end_time'])
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+    # make the bike unavailable
+    query = """
+    UPDATE Bike SET is_available = FALSE WHERE id = {bike_id};"""
+    query = query.format(bike_id=data['bike_id'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Bike booked successfully'})
+
+
+@api_view(['POST'])
+@is_authenticated
+def end_ride(request):
+    """
+    This function is used to end a ride
+    """
+    # get the data from the request
+    data = request.data
+
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # end the ride
+    query = """
+    UPDATE BookingSchedule SET end_time = '{end_time}' WHERE user_id = {user_id} AND bike_id = {bike_id} AND end_time IS NULL;"""
+    query = query.format(user_id=user_id, bike_id=data['bike_id'], end_time=data['end_time'])
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+    # make the bike available
+    query = """
+    UPDATE Bike SET is_available = TRUE WHERE id = {bike_id};"""
+    query = query.format(bike_id=data['bike_id'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+    # calculate total amount based on time
+    query = """
+    SELECT rate FROM Rate WHERE bike_id = {bike_id};"""
+    query = query.format(bike_id=data['bike_id'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    rate = result[0][0]
+    conn.close_connection()
+
+    # time = current time - start time
+    start_time_query = """
+    SELECT start_time FROM BookingSchedule WHERE user_id = {user_id} AND bike_id = {bike_id} AND end_time IS NULL;"""
+    start_time_query = start_time_query.format(user_id=user_id, bike_id=data['bike_id'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(start_time_query)
+    result = cursor.fetchall()
+    start_time = result[0][0]
+    conn.close_connection()
+
+    # calculate total amount
+    total_amount = rate * (data['end_time'] - start_time)
+    data['total_amount'] = total_amount
+    # deduct the amount from the card
+    query = """
+    UPDATE BikeCard SET balance = balance - {total_amount} WHERE user_id = {user_id};"""
+    query = query.format(total_amount=total_amount, user_id=user_id)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+    data["amount_deducted"] = total_amount
+
+    # save the payment history
+    query = """
+    INSERT INTO PaymentHistory (user_id, amount, start_time, end_time) VALUES ({user_id}, {total_amount}, '{start_time}', '{end_time}');"""
+    query = query.format(user_id=user_id, total_amount=total_amount, start_time=start_time, end_time=data['end_time'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+    return Response({'message': 'Ride ended successfully'})
+
+
+@api_view(['POST'])
+@is_authenticated
+def give_feedback(request):
+    """
+    This function is used to give feedback
+    """
+    # get the data from the request
+    data = request.data
+
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # give feedback
+    query = """
+    INSERT INTO Feedback (user_id, feedback) VALUES ({user_id}, '{feedback}');"""
+    query = query.format(user_id=user_id, feedback=data['feedback'])
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Feedback given successfully'})
+
+
+@api_view(['GET'])
+@is_authenticated
+def get_payment_history(request):
+    """
+    This function is used to get the payment history
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # get the payment history
+    query = """
+    SELECT * FROM PaymentHistory WHERE user_id = {user_id};"""
+    query = query.format(user_id=user_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
+
+
+
+@api_view(['GET'])
+@is_authenticated
+def get_payment_history(request):
+    """
+    This function is used to get the payment history
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # get the payment history
+    query = """
+    SELECT * FROM PaymentHistory WHERE user_id = {user_id};"""
+    query = query.format(user_id=user_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
+
+
+@api_view(['GET'])
+@is_authenticated
+def get_location_history(request):
+    """
+    This function is used to get the location history
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # get the location history
+    query = """
+    SELECT * FROM LocationHistory WHERE user_id = {user_id};"""
+    query = query.format(user_id=user_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
+
+
+@api_view(['POST'])
+@is_authenticated
+def add_balance(request):
+    """
+    This function is used to add balance to the card
+    """
+    # get the data from the request
+    data = request.data
+
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # add balance
+    query = """
+    UPDATE BikeCard SET balance = balance + {amount} WHERE user_id = {user_id};"""
+    query = query.format(amount=data['amount'], user_id=user_id)
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Balance added successfully'})
+
+
+@api_view(['GET'])
+@is_authenticated
+def get_balance(request):
+    """
+    This function is used to get the balance
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # get the balance
+    query = """
+    SELECT balance FROM BikeCard WHERE user_id = {user_id};"""
+    query = query.format(user_id=user_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result[0][0])
+
+
+
+# Get Bike Details:
+@api_view(['GET'])
+@is_authenticated
+def get_bike_details(request):
+    """
+    This function is used to get the bike details
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # get the bike details
+    query = """
+    SELECT * FROM Bike;"""
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
+
+
+# Search Stations
+@api_view(['GET'])
+@is_authenticated
+def search_stations(request):
+    """
+    This function is used to search the stations
+    """
+    # get the user id from the token
+    token = request.headers['Authorization']
+    token = token.split(' ')[1]
+    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+
+    # get the user id
+    query = """
+    SELECT id FROM User WHERE token = '{token}';"""
+    query = query.format(token=token)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    user_id = result[0][0]
+
+    # get the stations
+    query = """
+    SELECT * FROM Stations;"""
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
 
 
