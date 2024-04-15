@@ -10,7 +10,7 @@ import jwt
 from .models import User
 
 # import mysql connector
-from .sqlconnector import MySQLConnector
+from .sqlconnector import MySQLConnector, get_cursor
 
 from .create_table_script import create_tables
 
@@ -32,10 +32,14 @@ def is_authenticated(func):
         cursor = connection.cursor()
         cursor.execute(query)
         result = cursor.fetchall()
+        conn.close_connection()
 
         if not result:
             return Response({'error': 'Invalid token'})
 
+        # # append user id to the request and user_name
+        request.user_id = result[0][0]
+        request.user_name = result[0][1]
         return func(request, *args, **kwargs)
     return wrapper
 
@@ -180,24 +184,6 @@ def get_neareast_locations(request):
     lat = data['lat']
     long = data['long']
 
-    # sample query
-    # SELECT
-    #     s.StationID,
-    #     s.StationName,
-    #     s.Address,
-    #     s.Locatiion_lat AS Station_lat,
-    #     s.Locatiion_lon AS Station_lon,
-    #     COUNT(b.BikeID) AS AvailableBikes,
-    #     (6371 * acos(cos(radians(42)) * cos(radians(s.Locatiion_lat)) * cos(radians(s.Locatiion_lon) - radians(-72)) + sin(radians(42)) * sin(radians(s.Locatiion_lat)))) AS Distance
-    # FROM
-    #     stations s
-    # LEFT JOIN
-    #     bike b ON s.StationID = b.StationID AND b.InUse = 0 and status = 'Available'
-    # GROUP BY
-    #     s.StationID, s.StationName, s.Address, s.Locatiion_lat, s.Locatiion_lon
-    # ORDER BY
-    #     Distance;
-
     query = """
 SELECT
     s.StationID,
@@ -241,30 +227,6 @@ ORDER BY
     result = cursor.fetchall()
     # reformat response
     response = {}
-    # {
-    #   "stations":[
-    #     {
-    #       "name":"xyz",
-    #       "StationID" : 123,
-    #       "Address": "xyz",
-    #       "avaible_bikes":[
-    #         {
-    #           "bikeID":12,
-    #           "range":null,
-    #           "last maintainence" : 2024-01-01
-    #         },
-    #         {
-    #           "bikeID":12,
-    #           "range":2,
-    #           "last maintainence" : 2024-01-01
-    #         }
-    #       ],
-    #       "lat":123,
-    #       "lon":123,
-    #       "distance_factor":9
-    #     }
-    #   ]
-    # }
 
     stations = []
     for row in result:
@@ -284,41 +246,128 @@ ORDER BY
     return Response(response)
 
 
-# api to check if user has minimum balance of 10usd
+# search stations
+@api_view(['POST'])  # Use POST since we are submitting data
+@is_authenticated
+def search_stations(request):
+    """
+    Search for station locations based on a user-provided search keyword.
+
+    Parameters:
+    request (Request): The HTTP request object containing 'search_key' in the JSON body, which is used to filter station names.
+
+    Returns:
+    Response: A Django Rest Framework response object containing a filtered list of stations based on the search keyword.
+    """
+    # Extract the search keyword from the request data
+    data = request.data
+    search_key = data.get('search_key', '')  # Default to empty string if not provided
+
+    # SQL query to fetch stations filtered by search keyword
+    query = """
+    SELECT
+        s.StationID,
+        s.StationName,
+        s.Address,
+        s.Locatiion_lat AS Station_lat,
+        s.Locatiion_lon AS Station_lon,
+        JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'bikeID', ab.BikeID,
+                'range', ab.Bike_range,
+                'last maintenance', ab.LastMaintenanceDate
+            )
+        ) AS available_bikes
+    FROM
+        stations s
+    LEFT JOIN (
+        SELECT
+            b.StationID,
+            b.BikeID,
+            IFNULL(e.Bike_range, -1) AS Bike_range,
+            b.LastMaintenanceDate
+        FROM
+            bike b
+        LEFT JOIN
+            ebike e ON b.BikeID = e.BikeID
+        WHERE
+            b.InUse = 0 AND b.status = 'Available'
+    ) AS ab ON s.StationID = ab.StationID
+    WHERE
+        s.StationName LIKE %s
+    GROUP BY
+        s.StationID, s.StationName, s.Address, s.Locatiion_lat, s.Locatiion_lon
+    """
+
+    # Connect to the database and execute the query
+    conn = MySQLConnector()  # Assuming MySQLConnector is a class handling DB connections
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    like_search_key = f"%{search_key}%"  # Format search key for SQL LIKE query
+    cursor.execute(query, (like_search_key,))
+    result = cursor.fetchall()
+
+    # Format the response
+    response = {}
+    stations = []
+    for row in result:
+        station = {
+            "StationID": row[0],
+            "name": row[1],
+            "Address": row[2],
+            "lat": row[3],
+            "lon": row[4],
+            "available_bikes": eval(row[5])  # Assuming the data is returned as a JSON string
+        }
+        stations.append(station)
+    response["stations"] = stations
+
+    conn.close_connection()
+    return Response(response)
+
+
+# check balance
 @api_view(['GET'])
 @is_authenticated
-def check_balance(request):
+def get_balance(request):
     """
     This function is used to check the balance of the user
     """
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
-
-    # get the user id
+    user_id = request.user_id
     query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
-    # check the balance
-    query = """
-    SELECT balance FROM BikeCard WHERE user_id = {user_id};"""
+    SELECT balance FROM BikeCard WHERE UserID = {user_id};"""
     query = query.format(user_id=user_id)
+    cursor, conn = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     conn.close_connection()
-    if result[0][0] < 10:
-        return Response({'error': 'Insufficient balance'})
-    return Response({'message': 'Sufficient balance'})
+    res = {
+        "balance": result[0][0]
+    }
+    return Response(res)
+
+# add balance to card post request
+@api_view(['POST'])
+@is_authenticated
+def add_balance(request):
+    """
+    This function is used to add balance to the card
+    """
+    user_id = request.user_id
+    data = request.data
+    query = """
+    UPDATE BikeCard SET balance = balance + {amount} WHERE UserID = {user_id};"""
+    query = query.format(amount=data['amount'], user_id=user_id)
+    cursor, conn = get_cursor()
+    cursor.execute(query)
+    conn.close_connection()
+    return Response({'message': 'Balance added successfully'})
 
 
+
+# start ride
+# end ride
+#
 @api_view(['POST'])
 @is_authenticated
 def book_bike(request):
@@ -596,72 +645,6 @@ def get_location_history(request):
     return Response(result)
 
 
-@api_view(['POST'])
-@is_authenticated
-def add_balance(request):
-    """
-    This function is used to add balance to the card
-    """
-    # get the data from the request
-    data = request.data
-
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
-
-    # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
-    # add balance
-    query = """
-    UPDATE BikeCard SET balance = balance + {amount} WHERE user_id = {user_id};"""
-    query = query.format(amount=data['amount'], user_id=user_id)
-    cursor.execute(query)
-    connection.commit()
-    conn.close_connection()
-    return Response({'message': 'Balance added successfully'})
-
-
-@api_view(['GET'])
-@is_authenticated
-def get_balance(request):
-    """
-    This function is used to get the balance
-    """
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
-
-    # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
-    # get the balance
-    query = """
-    SELECT balance FROM BikeCard WHERE user_id = {user_id};"""
-    query = query.format(user_id=user_id)
-    cursor.execute(query)
-    result = cursor.fetchall()
-    conn.close_connection()
-    return Response(result[0][0])
-
 
 
 # Get Bike Details:
@@ -696,51 +679,6 @@ def get_bike_details(request):
     return Response(result)
 
 
-# Search Stations
-@api_view(['GET'])
-@is_authenticated
-def search_stations(request):
-    """
-    This function is used to search the stations
-    """
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
-
-    # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
-    # get the stations
-    query = """
-    SELECT * FROM Stations;"""
-    cursor.execute(query)
-    result = cursor.fetchall()
-    conn.close_connection()
-    return Response(result)
-
-
-# maintance schema f
-# -- bikerental.maintenancerecord definition
-#
-# CREATE TABLE `maintenancerecord` (
-#   `RecordID` int NOT NULL,
-#   `DateOfMaintenance` date DEFAULT NULL,
-#   `Details` varchar(255) DEFAULT NULL,
-#   `BikeID` int DEFAULT NULL,
-#   PRIMARY KEY (`RecordID`),
-#   UNIQUE KEY `AK_MaintenanceRecord` (`Details`),
-#   KEY `BikeID` (`BikeID`),
-#   CONSTRAINT `maintenancerecord_ibfk_1` FOREIGN KEY (`BikeID`) REFERENCES `bike` (`BikeID`)
-# ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 # API to move a bike to maintenance
 @api_view(['POST'])
