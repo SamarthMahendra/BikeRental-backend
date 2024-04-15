@@ -180,18 +180,108 @@ def get_neareast_locations(request):
     lat = data['lat']
     long = data['long']
 
+    # sample query
+    # SELECT
+    #     s.StationID,
+    #     s.StationName,
+    #     s.Address,
+    #     s.Locatiion_lat AS Station_lat,
+    #     s.Locatiion_lon AS Station_lon,
+    #     COUNT(b.BikeID) AS AvailableBikes,
+    #     (6371 * acos(cos(radians(42)) * cos(radians(s.Locatiion_lat)) * cos(radians(s.Locatiion_lon) - radians(-72)) + sin(radians(42)) * sin(radians(s.Locatiion_lat)))) AS Distance
+    # FROM
+    #     stations s
+    # LEFT JOIN
+    #     bike b ON s.StationID = b.StationID AND b.InUse = 0 and status = 'Available'
+    # GROUP BY
+    #     s.StationID, s.StationName, s.Address, s.Locatiion_lat, s.Locatiion_lon
+    # ORDER BY
+    #     Distance;
+
     query = """
-    SELECT * FROM Stations
-    LEFT JOIN Bike ON Stations.id = Bike.station_id
-    WHERE ( 6371 * acos( cos( radians({lat}) ) * cos( radians( lat ) ) * cos( radians( long ) - radians({long}) ) + sin( radians({lat}) ) * sin( radians( lat ) ) ) ) < 5;"""
+SELECT
+    s.StationID,
+    s.StationName,
+    s.Address,
+    s.Locatiion_lat AS Station_lat,
+    s.Locatiion_lon AS Station_lon,
+    JSON_ARRAYAGG(
+        JSON_OBJECT(
+            'bikeID', ab.BikeID,
+            'range', ab.Bike_range,
+            'last maintenance', ab.LastMaintenanceDate
+        )
+    ) AS available_bikes,
+    (6371 * acos(cos(radians({lat})) * cos(radians(s.Locatiion_lat)) * cos(radians(s.Locatiion_lon) - radians({long})) + sin(radians({lat})) * sin(radians(s.Locatiion_lat)))) AS Distance
+FROM
+    stations s
+LEFT JOIN (
+    SELECT
+        s.StationID,
+        b.BikeID,
+        IFNULL(e.Bike_range, -1) AS Bike_range,
+        b.LastMaintenanceDate
+    FROM
+        stations s
+    LEFT JOIN
+        bike b ON s.StationID = b.StationID AND b.InUse = 0 AND b.status = 'Available'
+    LEFT JOIN
+        ebike e ON b.BikeID = e.BikeID
+) AS ab ON s.StationID = ab.StationID
+GROUP BY
+    s.StationID, s.StationName, s.Address, s.Locatiion_lat, s.Locatiion_lon
+ORDER BY
+    Distance;
+"""
     query = query.format(lat=lat, long=long)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
     cursor.execute(query)
     result = cursor.fetchall()
+    # reformat response
+    response = {}
+    # {
+    #   "stations":[
+    #     {
+    #       "name":"xyz",
+    #       "StationID" : 123,
+    #       "Address": "xyz",
+    #       "avaible_bikes":[
+    #         {
+    #           "bikeID":12,
+    #           "range":null,
+    #           "last maintainence" : 2024-01-01
+    #         },
+    #         {
+    #           "bikeID":12,
+    #           "range":2,
+    #           "last maintainence" : 2024-01-01
+    #         }
+    #       ],
+    #       "lat":123,
+    #       "lon":123,
+    #       "distance_factor":9
+    #     }
+    #   ]
+    # }
+
+    stations = []
+    for row in result:
+        station = {
+            "name": row[1],
+            "StationID": row[0],
+            "Address": row[2],
+            "available_bikes": eval(row[5]),
+            "lat": row[3],
+            "lon": row[4],
+            "distance_factor": row[6]
+        }
+        stations.append(station)
+    response["stations"]= stations
+
     conn.close_connection()
-    return Response(result)
+    return Response(response)
 
 
 # api to check if user has minimum balance of 10usd
@@ -636,5 +726,94 @@ def search_stations(request):
     result = cursor.fetchall()
     conn.close_connection()
     return Response(result)
+
+
+# maintance schema f
+# -- bikerental.maintenancerecord definition
+#
+# CREATE TABLE `maintenancerecord` (
+#   `RecordID` int NOT NULL,
+#   `DateOfMaintenance` date DEFAULT NULL,
+#   `Details` varchar(255) DEFAULT NULL,
+#   `BikeID` int DEFAULT NULL,
+#   PRIMARY KEY (`RecordID`),
+#   UNIQUE KEY `AK_MaintenanceRecord` (`Details`),
+#   KEY `BikeID` (`BikeID`),
+#   CONSTRAINT `maintenancerecord_ibfk_1` FOREIGN KEY (`BikeID`) REFERENCES `bike` (`BikeID`)
+# ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+# API to move a bike to maintenance
+@api_view(['POST'])
+@is_authenticated
+def move_to_maintenance(request):
+    """
+    This function is used to move a bike to maintenance
+    """
+    # get the data from the request
+    data = request.data
+
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+
+    # move the bike to maintenance
+    query = """
+    INSERT INTO MaintenanceRecord (DateOfMaintenance, Details, BikeID) VALUES ('{date_of_maintenance}', '{details}', {bike_id});"""
+    query = query.format(date_of_maintenance=data['date_of_maintenance'], details=data['details'], bike_id=data['bike_id'])
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Bike moved to maintenance successfully'})
+
+
+# API to get the maintenance Records with option to filter by bike id, date of maintenance
+@api_view(['POST'])
+@is_authenticated
+def get_maintenance_records(request):
+    """
+    This function is used to get the maintenance records
+    """
+    # get the data from the request
+    data = request.data
+
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+
+    # get the maintenance records
+     # based on filers sent in the request
+    query = """
+    SELECT * FROM MaintenanceRecord WHERE 1=1 """
+    if 'bike_id' in data:
+        query += " AND BikeID = {bike_id}".format(bike_id=data['bike_id'])
+    if 'date_of_maintenance' in data:
+        query += " AND DateOfMaintenance = '{date_of_maintenance}'".format(date_of_maintenance=data['date_of_maintenance'])
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+    return Response(result)
+
+# remove bike from maintenance
+@api_view(['POST'])
+@is_authenticated
+def remove_from_maintenance(request):
+    """
+    This function is used to remove a bike from maintenance
+    """
+    # get the data from the request
+    data = request.data
+
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+
+    # remove the bike from maintenance
+    query = """
+    DELETE FROM MaintenanceRecord WHERE BikeID = {bike_id};"""
+    query = query.format(bike_id=data['bike_id'])
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Bike removed from maintenance successfully'})
 
 
