@@ -3,7 +3,7 @@ import mysql.connector
 class MySQLConnector:
     _instances = {}
     _instance_count = 0
-    _max_instances = 10
+    _max_instances = 100
 
     def __new__(cls):
         if cls._instance_count < cls._max_instances:
