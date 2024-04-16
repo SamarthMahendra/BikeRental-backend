@@ -80,8 +80,17 @@ WSGI_APPLICATION = 'BikeRental.wsgi.application'
 #                                       database="bikerental", ssl_ca="C:\\Users\\samar\\OneDrive\\Desktop\\Practice projects\\BikeRental\\Rental\\DigiCertGlobalRootCA.crt.pem", ssl_disabled=False)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'bikerental',
+        'USER': 'superuser',
+        'PASSWORD': 'root@123',
+        'HOST': 'stock-bucket-indiaa.mysql.database.azure.com',
+        'PORT': '3306',
+        'OPTIONS': {
+            'ssl': {
+                'ca': 'C:\\Users\\samar\\OneDrive\\Desktop\\Practice projects\\BikeRental\\Rental\\DigiCertGlobalRootCA.crt.pem'
+            }
+        }
     }
 }
 

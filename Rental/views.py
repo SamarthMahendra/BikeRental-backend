@@ -1,3 +1,5 @@
+import datetime
+
 from django.shortcuts import render
 
 # import api_view from djnago rest framework
@@ -337,7 +339,7 @@ def get_balance(request):
     query = """
     SELECT balance FROM BikeCard WHERE UserID = {user_id};"""
     query = query.format(user_id=user_id)
-    cursor, conn = get_cursor()
+    cursor, conn, _ = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     conn.close_connection()
@@ -358,7 +360,7 @@ def add_balance(request):
     query = """
     UPDATE BikeCard SET balance = balance + {amount} WHERE UserID = {user_id};"""
     query = query.format(amount=data['amount'], user_id=user_id)
-    cursor, conn = get_cursor()
+    cursor, conn, _ = get_cursor()
     cursor.execute(query)
     conn.close_connection()
     return Response({'message': 'Balance added successfully'})
@@ -522,30 +524,32 @@ def give_feedback(request):
     # get the data from the request
     data = request.data
 
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
+    user_name = request.user_name
+    user_id = request.user_id
 
-    # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
+    start_station_id = data['station_id']
+    end_station_id = data['end_station_id']
+    bikeID = data['bike_id']
+    feedback = data['feedback']
 
-    # give feedback
+    # timestamp = current time
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    rating = data['rating']
+
+
+    cursor, conn, connection = get_cursor()
     query = """
-    INSERT INTO Feedback (user_id, feedback) VALUES ({user_id}, '{feedback}');"""
-    query = query.format(user_id=user_id, feedback=data['feedback'])
+    INSERT INTO Feedback (Rating, Comments, UserID, BikeID, Timestamp, StartStationID, EndStationID) VALUES ({rating}, '{feedback}', {user_id}, {bike_id}, '{timestamp}', {start_station_id}, {end_station_id});"""
+    query = query.format(rating=rating, feedback=feedback, user_id=user_id, bike_id=bikeID, timestamp=timestamp, start_station_id=start_station_id, end_station_id=end_station_id)
     cursor.execute(query)
     connection.commit()
     conn.close_connection()
-    return Response({'message': 'Feedback given successfully'})
+    your_feedback = {
+        "rating": rating,
+        "comments": feedback,
+        "timestamp": timestamp
+    }
+    return Response({'message': 'Feedback given successfully','data':your_feedback})
 
 
 @api_view(['GET'])
@@ -554,22 +558,10 @@ def get_payment_history(request):
     """
     This function is used to get the payment history
     """
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
 
     # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
+    user_id = request.user_id
+    cursor , conn, connection = get_cursor()
     # get the payment history
     query = """
     SELECT * FROM PaymentHistory WHERE user_id = {user_id};"""

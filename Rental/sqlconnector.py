@@ -41,4 +41,4 @@ class MySQLConnector:
 def get_cursor():
     conn = MySQLConnector()
     connection = conn.get_connection()
-    return connection.cursor(), conn
+    return connection.cursor(), conn, connection
