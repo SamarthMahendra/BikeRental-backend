@@ -839,12 +839,15 @@ def end_ride(request):
 def make_payment(request):
     data = request.data
     user_id = request.user_id
-    schedule_id = data['schedule_id']
+    schedule_id = data["ScheduleID"]
     amount = data['amount']
-    # insert into payment history
+    #   `TransactionID` int NOT NULL,
+    #   `Cost` decimal(10,2) DEFAULT NULL,
+    #   `ScheduleID` int DEFAULT NULL,
+    #   `UserID` int DEFAULT NULL,
     query = """
-    INSERT INTO PaymentHistory (UserID, ScheduleID, Amount) VALUES ({user_id}, {schedule_id}, {amount});"""
-    query = query.format(user_id=user_id, schedule_id=schedule_id, amount=amount)
+    INSERT INTO Transaction (Cost, ScheduleID, UserID) VALUES ({Cost}, {ScheduleID}, {UserID});"""
+    query = query.format(Cost=amount, ScheduleID=schedule_id, UserID=user_id)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
@@ -860,7 +863,13 @@ def get_payment_history(request):
     user_id = request.user_id
     # get the payment history
     query = """
-    SELECT * FROM PaymentHistory WHERE UserID = {user_id};"""
+    SELECT t.TransactionID, t.Cost, b.BikeID, t.UserID, t.ScheduleID, b.StartDate, b.EndDate , st.StationName as start_station, ed.StationName as end_station
+    FROM Transaction t
+    inner join BookingSchedule b on t.ScheduleID = b.ScheduleID
+    inner join stations st on b.StartStationID = st.StationID
+    inner join stations ed on b.EndStationID = ed.StationID
+    WHERE t.UserID = {user_id}
+    order by b.StartDate desc;"""
     query = query.format(user_id=user_id)
     conn = MySQLConnector()
     connection = conn.get_connection()
@@ -875,13 +884,16 @@ def get_payment_history(request):
     for row in result:
         payment = {
             "TransactionID": row[0],
-            "StartTime": row[1],
-            "EndTime": row[2],
-            "Cost": row[3],
-            "BikeID": row[4],
-            "UserID": row[5]
+            "Cost": row[1],
+            "BikeID": row[2],
+            "UserID": row[3],
+            "ScheduleID": row[4],
+            "start_time": row[5],
+            "end_time": row[6],
+            "start_station": row[7],
+            "end_station": row[8]
         }
         payments.append(payment)
-    return Response(result)
+    return Response(payments)
 
 
