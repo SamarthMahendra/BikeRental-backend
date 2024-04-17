@@ -77,7 +77,16 @@ def signup(request):
     cursor.execute(query)
     connection.commit()
     conn.close_connection()
-
+    # fetch userid of the user
+    query = """
+    SELECT UserID FROM User WHERE email = '{email}';"""
+    query = query.format(email=data['email'])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
     query = """
     INSERT INTO BikeCard (Balance, UserID) VALUES (0, {user_id});"""
     query = query.format(user_id=result[0][0])
