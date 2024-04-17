@@ -113,11 +113,25 @@ class Feedback(models.Model):
     FeedbackID = models.AutoField(primary_key=True)
     Rating = models.IntegerField()
     Comments = models.CharField(max_length=1024)
-    UserID = models.ForeignKey('User', on_delete=models.CASCADE, db_column='UserID')
-    BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
+    UserID = models.ForeignKey(
+        'User', on_delete=models.CASCADE, db_column='UserID')
+    BikeID = models.ForeignKey(
+        'Bike', on_delete=models.CASCADE, db_column='BikeID')
     Timestamp = models.DateTimeField(auto_now_add=True)
-    StartStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='StartStationID')
-    EndStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='EndStationID')
+    StartStationID = models.ForeignKey(
+        'Stations',
+        on_delete=models.CASCADE,
+        db_column='StartStationID',
+        # Unique related name for feedbacks starting at this station
+        related_name='start_feedbacks'
+    )
+    EndStationID = models.ForeignKey(
+        'Stations',
+        on_delete=models.CASCADE,
+        db_column='EndStationID',
+        # Unique related name for feedbacks ending at this station
+        related_name='end_feedbacks'
+    )
 
     def __str__(self):
         return str(self.FeedbackID)
