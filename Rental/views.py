@@ -78,6 +78,17 @@ def signup(request):
     connection.commit()
     conn.close_connection()
 
+    query = """
+    INSERT INTO BikeCard (Balance, UserID) VALUES (0, {user_id});"""
+    query = query.format(user_id=result[0][0])
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+
 
     # return the response
     return Response({'token': token})
@@ -895,5 +906,26 @@ def get_payment_history(request):
         }
         payments.append(payment)
     return Response(payments)
+
+@api_view(['DELETE'])
+@is_authenticated
+def delete_transaction(request):
+    """
+    This function is used to delete a user
+    """
+    user_id = request.user_id
+    transaction_id = request.data['transaction_id']
+    query = """
+    DELETE FROM Transaction WHERE TransactionID = {transaction_id} AND UserID = {user_id};"""
+    query = query.format(transaction_id=transaction_id, user_id=user_id)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Transaction deleted successfully'})
+
+
 
 

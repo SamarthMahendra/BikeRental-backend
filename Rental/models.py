@@ -2,12 +2,12 @@ from django.db import models
 
 # Create your models here.
 
-# create a model called user
 class User(models.Model):
+    UserID = models.AutoField(primary_key=True)
     username = models.CharField(max_length=100)
-    email = models.EmailField()
+    email = models.CharField(max_length=100)
     password = models.CharField(max_length=100)
-    token = models.CharField(max_length=100)
+    token = models.CharField(max_length=512)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -15,10 +15,9 @@ class User(models.Model):
     def __str__(self):
         return self.username
 
-    # declare table name as User
     class Meta:
         app_label = 'Rental'
-        db_table = 'User'
+        db_table = 'user'
 
 
 
@@ -77,21 +76,6 @@ class Stations(models.Model):
         app_label = 'Rental'
         db_table = 'stations'
 
-# -- bikerental.bike definition
-#
-# CREATE TABLE `bike` (
-#   `BikeID` int NOT NULL AUTO_INCREMENT,
-#   `Status` varchar(100) DEFAULT NULL,
-#   `Location_lat` decimal(10,6) DEFAULT NULL,
-#   `Location_lon` decimal(10,6) DEFAULT NULL,
-#   `InUse` tinyint(1) DEFAULT NULL,
-#   `StationID` int DEFAULT NULL,
-#   `LastMaintenanceDate` datetime DEFAULT CURRENT_TIMESTAMP,
-#   `RideCount` int DEFAULT '0',
-#   PRIMARY KEY (`BikeID`),
-#   KEY `StationID` (`StationID`),
-#   CONSTRAINT `bike_ibfk_1` FOREIGN KEY (`StationID`) REFERENCES `stations` (`StationID`)
-# ) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=utf8mb3;
 
 class Bike(models.Model):
     BikeID = models.AutoField(primary_key=True)
@@ -111,18 +95,6 @@ class Bike(models.Model):
         db_table = 'bike'
 
 
-
-# -- bikerental.ebike definition
-#
-# CREATE TABLE `ebike` (
-#   `my_row_id` bigint unsigned NOT NULL AUTO_INCREMENT /*!80023 INVISIBLE */,
-#   `BikeID` int DEFAULT NULL,
-#   `Bike_range` int DEFAULT NULL,
-#   PRIMARY KEY (`my_row_id`),
-#   UNIQUE KEY `BikeID` (`BikeID`,`Bike_range`),
-#   CONSTRAINT `ebike_ibfk_1` FOREIGN KEY (`BikeID`) REFERENCES `bike` (`BikeID`)
-# ) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb3;
-
 class Ebike(models.Model):
     my_row_id = models.AutoField(primary_key=True)
     BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
@@ -134,3 +106,22 @@ class Ebike(models.Model):
     class Meta:
         app_label = 'Rental'
         db_table = 'ebike'
+
+
+
+class Feedback(models.Model):
+    FeedbackID = models.AutoField(primary_key=True)
+    Rating = models.IntegerField()
+    Comments = models.CharField(max_length=1024)
+    UserID = models.ForeignKey('User', on_delete=models.CASCADE, db_column='UserID')
+    BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
+    Timestamp = models.DateTimeField(auto_now_add=True)
+    StartStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='StartStationID')
+    EndStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='EndStationID')
+
+    def __str__(self):
+        return str(self.FeedbackID)
+
+    class Meta:
+        app_label = 'Rental'
+        db_table = 'feedback'

@@ -12,7 +12,8 @@ class MySQLConnector:
             cls._instance_count += 1
             return instance
         else:
-            raise Exception("Maximum instance limit reached")
+            # return the first instance
+            return cls._instances[0]
 
     def __init__(self):
         # We initialize only if not already initialized

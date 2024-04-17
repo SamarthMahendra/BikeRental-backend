@@ -1,7 +1,7 @@
 
 from django.contrib import admin
 from django.urls import path
-from .views import signup, login, logout, get_neareast_locations, get_balance, add_balance,search_stations, give_feedback, get_estimated_cost, start_ride, end_ride, make_payment, get_payment_history
+from .views import signup, login, logout, get_neareast_locations, get_balance, add_balance,search_stations, give_feedback, get_estimated_cost, start_ride, end_ride, make_payment, get_payment_history, delete_transaction
 
 urlpatterns = [
     # sign up api
@@ -21,6 +21,7 @@ urlpatterns = [
     path('end_ride/', end_ride, name='end_ride'),
     path('make_payment/', make_payment, name='make_payment'),
     path('get_payment_history/', get_payment_history, name='get_payment_history'),
+    path('delete_transaction/', delete_transaction, name='delete_transaction'),
 
 
 ]

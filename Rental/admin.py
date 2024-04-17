@@ -3,7 +3,7 @@ from datetime import date
 from django.contrib import admin
 
 from django.contrib import admin
-from .models import User, MaintenanceRecord, Stations, Bike, Ebike
+from .models import User, MaintenanceRecord, Stations, Bike, Ebike, Feedback
 
 # Register your models here.
 
@@ -128,4 +128,37 @@ class EbikeAdmin(admin.ModelAdmin):
     list_display = ('my_row_id', 'BikeID', 'Bike_range')
     search_fields = ('BikeID',)
     list_filter = ('Bike_range',)
+
+
+# class Feedback(models.Model):
+#     FeedbackID = models.AutoField(primary_key=True)
+#     Rating = models.IntegerField()
+#     Comments = models.CharField(max_length=1024)
+#     UserID = models.ForeignKey('User', on_delete=models.CASCADE, db_column='UserID')
+#     BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
+#     Timestamp = models.DateTimeField(auto_now_add=True)
+#     StartStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='StartStationID')
+#     EndStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='EndStationID')
+#
+#     def __str__(self):
+#         return str(self.FeedbackID)
+#
+#     class Meta:
+#         app_label = 'Rental'
+#         db_table = 'feedback'
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ('FeedbackID', 'Rating', 'Comments', 'UserID', 'BikeID', 'Timestamp', 'StartStationID', 'EndStationID')
+    search_fields = ('Comments',)
+    list_filter = ('Rating', 'Timestamp')
+
+
+
+@admin.register(User)
+class UserAdmin(admin.ModelAdmin):
+    list_display = ('UserID', 'username', 'email', 'password', 'token', 'is_active', 'created_at', 'updated_at')
+    search_fields = ('username',)
+    list_filter = ('is_active', 'created_at', 'updated_at')
+
 
