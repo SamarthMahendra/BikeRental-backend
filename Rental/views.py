@@ -251,18 +251,25 @@ ORDER BY
     response = {}
 
     stations = []
-    for row in result:
-        station = {
-            "name": row[1],
-            "StationID": row[0],
-            "Address": row[2],
-            "available_bikes": eval(row[5]),
-            "lat": row[3],
-            "lon": row[4],
-            "distance_factor": row[6]
-        }
-        stations.append(station)
-    response["stations"]= stations
+    try:
+        for row in result:
+            station = {
+                "name": row[1],
+                "StationID": row[0],
+                "Address": row[2],
+
+                "lat": row[3],
+                "lon": row[4],
+                "distance_factor": row[6]
+            }
+            try:
+                station["available_bikes"] = eval(row[5])
+            except:
+                station["available_bikes"] = []
+            stations.append(station)
+        response["stations"]= stations
+    except Exception as e:
+        print(e)
 
     conn.close_connection()
     return Response(response)
