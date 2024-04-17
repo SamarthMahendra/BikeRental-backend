@@ -360,8 +360,9 @@ def add_balance(request):
     query = """
     UPDATE BikeCard SET balance = balance + {amount} WHERE UserID = {user_id};"""
     query = query.format(amount=data['amount'], user_id=user_id)
-    cursor, conn, _ = get_cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
+    connection.commit()
     conn.close_connection()
     return Response({'message': 'Balance added successfully'})
 
@@ -745,5 +746,30 @@ def remove_from_maintenance(request):
     connection.commit()
     conn.close_connection()
     return Response({'message': 'Bike removed from maintenance successfully'})
+
+
+@api_view(['POST'])
+@is_authenticated
+def get_estimated_cost(request):
+    """
+    This function is used to get the estimated cost of the ride
+    """
+    distance = request.data.get('distance', 0)
+    bike_id = request.data['bike_id']
+    # hardcoded minutes required to travel distance
+    # get minutes from request, if not there calculate from distance
+    minutes = request.data.get('minutes', int(distance) * 2)
+
+    cursor, conn, connection = get_cursor()
+    # Call the stored procedure to calculate the rental cost
+    cursor.execute("CALL CalculateRentalCostSelect(%s, %s);", [bike_id, minutes])
+    result = cursor.fetchone()
+
+    # Check if the procedure returned a result
+    if result:
+        bike_type, cost = result
+        return Response({'cost': cost, 'bike_type': bike_type})
+    else:
+        return Response({'error': 'No data returned from the procedure'}, status=404)
 
 
