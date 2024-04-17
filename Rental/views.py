@@ -773,3 +773,115 @@ def get_estimated_cost(request):
         return Response({'error': 'No data returned from the procedure'}, status=404)
 
 
+# transaction history of the user
+
+# api to start the ride (start station id, bike id, user id, start time, end station id)
+@api_view(['POST'])
+@is_authenticated
+def start_ride(request):
+    data = request.data
+    start_station_id = data['start_station_id']
+    bike_id = data['bike_id']
+    user_id = request.user_id
+    start_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    end_station_id = data['end_station_id']
+    end_time = None
+
+    # insert into booking schedule
+    query = """
+    INSERT INTO BookingSchedule (StartDate, UserID, BikeID, StartStationID, EndStationID) VALUES ('{start_time}', {user_id}, {bike_id}, {start_station_id}, {end_station_id});"""
+    query = query.format(start_time=start_time, user_id=user_id, bike_id=bike_id, start_station_id=start_station_id, end_station_id=end_station_id)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Ride started successfully'})
+
+
+# api to end the ride (end time)
+@api_view(['POST'])
+@is_authenticated
+def end_ride(request):
+    data = request.data
+    end_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    user_id = request.user_id
+    bike_id = data['bike_id']
+
+    # update the booking schedule
+    query = """
+    UPDATE BookingSchedule SET EndDate = '{end_time}' WHERE UserID = {user_id} AND BikeID = {bike_id};"""
+    query = query.format(end_time=end_time, user_id=user_id, bike_id=bike_id)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+
+    # get schedule ScheduleID
+    query = """
+    SELECT ScheduleID FROM BookingSchedule WHERE UserID = {user_id} AND BikeID = {bike_id};"""
+    query = query.format(user_id=user_id, bike_id=bike_id)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+
+    return Response({'message': 'Ride ended successfully', 'ScheduleID': result[0][0]})
+
+# make payment api
+@api_view(['POST'])
+@is_authenticated
+def make_payment(request):
+    data = request.data
+    user_id = request.user_id
+    schedule_id = data['schedule_id']
+    amount = data['amount']
+    # insert into payment history
+    query = """
+    INSERT INTO PaymentHistory (UserID, ScheduleID, Amount) VALUES ({user_id}, {schedule_id}, {amount});"""
+    query = query.format(user_id=user_id, schedule_id=schedule_id, amount=amount)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    conn.close_connection()
+    return Response({'message': 'Payment made successfully'})
+
+# get all payment history
+@api_view(['GET'])
+@is_authenticated
+def get_payment_history(request):
+    user_id = request.user_id
+    # get the payment history
+    query = """
+    SELECT * FROM PaymentHistory WHERE UserID = {user_id};"""
+    query = query.format(user_id=user_id)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+
+    # reformat response
+    response = {}
+    payments = []
+    for row in result:
+        payment = {
+            "TransactionID": row[0],
+            "StartTime": row[1],
+            "EndTime": row[2],
+            "Cost": row[3],
+            "BikeID": row[4],
+            "UserID": row[5]
+        }
+        payments.append(payment)
+    return Response(result)
+
+

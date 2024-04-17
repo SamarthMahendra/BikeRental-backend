@@ -3,7 +3,7 @@ from datetime import date
 from django.contrib import admin
 
 from django.contrib import admin
-from .models import User, MaintenanceRecord, Stations, Bike
+from .models import User, MaintenanceRecord, Stations, Bike, Ebike
 
 # Register your models here.
 
@@ -120,3 +120,12 @@ class BikeAdmin(admin.ModelAdmin):
     maintenance_link.allow_tags = True
 
 # Ensure to update other relevant parts of your Django project as necessary.
+# my_row_id = models.AutoField(primary_key=True)
+#     BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
+#     Bike_range = models.IntegerField()
+@admin.register(Ebike)
+class EbikeAdmin(admin.ModelAdmin):
+    list_display = ('my_row_id', 'BikeID', 'Bike_range')
+    search_fields = ('BikeID',)
+    list_filter = ('Bike_range',)
+

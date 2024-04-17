@@ -109,3 +109,28 @@ class Bike(models.Model):
     class Meta:
         app_label = 'Rental'
         db_table = 'bike'
+
+
+
+# -- bikerental.ebike definition
+#
+# CREATE TABLE `ebike` (
+#   `my_row_id` bigint unsigned NOT NULL AUTO_INCREMENT /*!80023 INVISIBLE */,
+#   `BikeID` int DEFAULT NULL,
+#   `Bike_range` int DEFAULT NULL,
+#   PRIMARY KEY (`my_row_id`),
+#   UNIQUE KEY `BikeID` (`BikeID`,`Bike_range`),
+#   CONSTRAINT `ebike_ibfk_1` FOREIGN KEY (`BikeID`) REFERENCES `bike` (`BikeID`)
+# ) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb3;
+
+class Ebike(models.Model):
+    my_row_id = models.AutoField(primary_key=True)
+    BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
+    Bike_range = models.IntegerField()
+
+    def __str__(self):
+        return str(self.my_row_id)
+
+    class Meta:
+        app_label = 'Rental'
+        db_table = 'ebike'
