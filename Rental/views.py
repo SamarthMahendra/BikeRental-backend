@@ -824,7 +824,19 @@ def start_ride(request):
     cursor.execute(query)
     connection.commit()
     conn.close_connection()
-    return Response({'message': 'Ride started successfully'})
+
+    # fetch the schedule id
+    query = """
+    SELECT ScheduleID FROM BookingSchedule WHERE UserID = {user_id} AND BikeID = {bike_id} AND StartDate = '{start_time}';"""
+    query = query.format(user_id=user_id, bike_id=bike_id, start_time=start_time)
+    conn = MySQLConnector()
+    connection = conn.get_connection()
+    cursor = connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    conn.close_connection()
+
+    return Response({'message': 'Ride started successfully', 'RideID': result[0][0]})
 
 
 # api to end the ride (end time)
@@ -835,22 +847,50 @@ def end_ride(request):
     end_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     user_id = request.user_id
     bike_id = data['bike_id']
+    ride_id = data['ride_id']
 
     # update the booking schedule
     query = """
-    UPDATE BookingSchedule SET EndDate = '{end_time}' WHERE UserID = {user_id} AND BikeID = {bike_id};"""
-    query = query.format(end_time=end_time, user_id=user_id, bike_id=bike_id)
+    UPDATE BookingSchedule SET EndDate = '{end_time}' WHERE ScheduleID = {ride_id} AND UserID = {user_id} AND BikeID = {bike_id};"""
+    query = query.format(end_time=end_time, ride_id=ride_id, user_id=user_id, bike_id=bike_id)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
     cursor.execute(query)
     connection.commit()
+
+    # get end station id from booking schedule using ride id as schedule id
+    query = """
+    SELECT EndStationID, StartDate FROM BookingSchedule WHERE ScheduleID = {ride_id};"""
+    query = query.format(ride_id=ride_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    end_station_id = result[0][0]
+    # Assume start_time and end_time are initially assigned; end_time should be a datetime object
+    start_time = result[0][1]
+
+    # Convert start_time to datetime if it is a string
+    if isinstance(start_time, str):
+        start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+
+    # Convert end_time to datetime if it is a string
+    if isinstance(end_time, str):
+        end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+
+    # Calculate the time consumed in minutes
+    time_consumed_in_minutes = (end_time - start_time).total_seconds() / 60
+    # update the bike status
+    query = """
+    UPDATE Bike SET StationID = {end_station_id} WHERE BikeID = {bike_id};"""
+    query = query.format(end_station_id=end_station_id, bike_id=bike_id)
+    cursor.execute(query)
+    connection.commit()
     conn.close_connection()
 
-    # get schedule ScheduleID
+    # deduct range from bike if it is ebike
     query = """
-    SELECT ScheduleID FROM BookingSchedule WHERE UserID = {user_id} AND BikeID = {bike_id};"""
-    query = query.format(user_id=user_id, bike_id=bike_id)
+    SELECT Bike_range FROM Ebike WHERE BikeID = {bike_id};"""
+    query = query.format(bike_id=bike_id)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
@@ -858,6 +898,16 @@ def end_ride(request):
     result = cursor.fetchall()
     conn.close_connection()
 
+    if result:
+        query = """
+        UPDATE Ebike SET Bike_range = Bike_range - {time_consumed_in_minutes}  WHERE BikeID = {bike_id};"""
+        query = query.format(bike_id=bike_id, time_consumed_in_minutes=time_consumed_in_minutes)
+        conn = MySQLConnector()
+        connection = conn.get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query)
+        connection.commit()
+        conn.close_connection()
     return Response({'message': 'Ride ended successfully', 'ScheduleID': result[0][0]})
 
 # make payment api

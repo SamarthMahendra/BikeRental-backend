@@ -25,7 +25,6 @@ SECRET_KEY = 'django-insecure-8ky0o_j$ys+zuvtao1hjxfsn0b_+_g1uex6#87jw*)+p+pmj_1
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -51,6 +50,22 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+]
+
+ALLOWED_HOSTS = ['8mvr5l-8000.csb.app', 'localhost',
+                 '127.0.0.1', 'https://bluebikerental.netlify.app']
+CSRF_TRUSTED_ORIGINS = ['https://*.csb.app',
+                        'http://localhost', 'https://*.netlify.app']
+CORS_ALLOWED_ORIGINS = ['http://localhost:3000',
+                        'http://localhost', 'https://bluebikerental.netlify.app']
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
