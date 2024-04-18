@@ -53,11 +53,11 @@ MIDDLEWARE = [
 ]
 
 ALLOWED_HOSTS = ['8mvr5l-8000.csb.app', 'localhost',
-                 '127.0.0.1', 'https://bluebikerental.netlify.app']
+                 '127.0.0.1', 'https://bluebikerental.netlify.app', 'https://stingray-app-eibd8.ondigitalocean.app']
 CSRF_TRUSTED_ORIGINS = ['https://*.csb.app',
-                        'http://localhost', 'https://*.netlify.app']
+                        'http://localhost', 'https://*.netlify.app', 'https://*.ondigitalocean.app']
 CORS_ALLOWED_ORIGINS = ['http://localhost:3000',
-                        'http://localhost', 'https://bluebikerental.netlify.app']
+                        'http://localhost', 'https://bluebikerental.netlify.app', 'https://stingray-app-eibd8.ondigitalocean.app']
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',
