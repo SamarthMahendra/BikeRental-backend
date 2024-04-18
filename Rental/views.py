@@ -6,7 +6,7 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 # import json response from django rest framework
 from rest_framework.response import Response
-  
+
 # import jwt for token authentication
 import jwt
 from .models import User
@@ -17,6 +17,8 @@ from .sqlconnector import MySQLConnector, get_cursor
 from .create_table_script import create_tables
 
 # write a decorator to check if the user is authenticated
+
+
 def is_authenticated(func):
     def wrapper(request, *args, **kwargs):
         # get the token from the request
@@ -29,12 +31,9 @@ def is_authenticated(func):
         query = """
         SELECT * FROM User WHERE token = '{token}';"""
         query = query.format(token=token)
-        conn = MySQLConnector()
-        connection = conn.get_connection()
-        cursor = connection.cursor()
+        cursor, conn, connection = get_cursor()
         cursor.execute(query)
         result = cursor.fetchall()
-        conn.close_connection()
 
         if not result:
             return Response({'error': 'Invalid token'})
@@ -44,6 +43,7 @@ def is_authenticated(func):
         request.user_name = result[0][1]
         return func(request, *args, **kwargs)
     return wrapper
+
 
 @api_view(['POST'])
 def signup(request):
@@ -68,12 +68,14 @@ def signup(request):
         return Response({'error': 'User already exists'})
 
     # create a token
-    token = jwt.encode({'name': data["username"]}, 'SECRET_KEY', algorithm='HS256')
+    token = jwt.encode({'name': data["username"]},
+                       'SECRET_KEY', algorithm='HS256')
 
     # create a user
     query = """
     INSERT INTO User (username, email, password, token) VALUES ('{username}', '{email}', '{password}', '{token}');"""
-    query = query.format(username=data['username'], email=data['email'], password=data['password'], token=token)
+    query = query.format(
+        username=data['username'], email=data['email'], password=data['password'], token=token)
     cursor.execute(query)
     connection.commit()
     conn.close_connection()
@@ -97,8 +99,6 @@ def signup(request):
     connection.commit()
     conn.close_connection()
 
-
-
     # return the response
     return Response({'token': token})
 
@@ -120,9 +120,7 @@ def login(request):
         token
          FROM User WHERE email = '{email}';"""
     query = query.format(email=data['email'])
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
 
@@ -130,7 +128,7 @@ def login(request):
         return Response({'error': 'User does not exist'})
 
     # check if the password is correct
-    if data['password'] !=  result[0][1]:
+    if data['password'] != result[0][1]:
         return Response({'error': 'Invalid password'})
 
     # create a token
@@ -143,7 +141,6 @@ def login(request):
     cursor.execute(query)
     connection.commit()
     conn.close_connection()
-
     # return the response
     return Response({'token': token})
 
@@ -166,9 +163,7 @@ def logout(request):
     query = """
     SELECT * FROM User WHERE token = '{token}';"""
     query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
 
@@ -181,8 +176,6 @@ def logout(request):
     query = query.format(token=token)
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
-
     # return the response
     return Response({'message': 'User logged out'})
 
@@ -267,7 +260,7 @@ ORDER BY
             except:
                 station["available_bikes"] = []
             stations.append(station)
-        response["stations"]= stations
+        response["stations"] = stations
     except Exception as e:
         print(e)
 
@@ -290,7 +283,8 @@ def search_stations(request):
     """
     # Extract the search keyword from the request data
     data = request.data
-    search_key = data.get('search_key', '')  # Default to empty string if not provided
+    # Default to empty string if not provided
+    search_key = data.get('search_key', '')
 
     # SQL query to fetch stations filtered by search keyword
     query = """
@@ -329,9 +323,7 @@ def search_stations(request):
     """
 
     # Connect to the database and execute the query
-    conn = MySQLConnector()  # Assuming MySQLConnector is a class handling DB connections
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     like_search_key = f"%{search_key}%"  # Format search key for SQL LIKE query
     cursor.execute(query, (like_search_key,))
     result = cursor.fetchall()
@@ -346,12 +338,12 @@ def search_stations(request):
             "Address": row[2],
             "lat": row[3],
             "lon": row[4],
-            "available_bikes": eval(row[5])  # Assuming the data is returned as a JSON string
+            # Assuming the data is returned as a JSON string
+            "available_bikes": eval(row[5])
         }
         stations.append(station)
     response["stations"] = stations
 
-    conn.close_connection()
     return Response(response)
 
 
@@ -369,13 +361,14 @@ def get_balance(request):
     cursor, conn, _ = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
-    conn.close_connection()
     res = {
         "balance": result[0][0]
     }
     return Response(res)
 
 # add balance to card post request
+
+
 @api_view(['POST'])
 @is_authenticated
 def add_balance(request):
@@ -390,9 +383,7 @@ def add_balance(request):
     cursor, conn, connection = get_cursor()
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
     return Response({'message': 'Balance added successfully'})
-
 
 
 # start ride
@@ -416,9 +407,7 @@ def book_bike(request):
     query = """
     SELECT id FROM User WHERE token = '{token}';"""
     query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     user_id = result[0][0]
@@ -426,121 +415,19 @@ def book_bike(request):
     # book the bike
     query = """
     INSERT INTO BookingSchedule (user_id, bike_id, start_time, end_time) VALUES ({user_id}, {bike_id}, '{start_time}', '{end_time}');"""
-    query = query.format(user_id=user_id, bike_id=data['bike_id'], start_time=data['start_time'], end_time=data['end_time'])
+    query = query.format(
+        user_id=user_id, bike_id=data['bike_id'], start_time=data['start_time'], end_time=data['end_time'])
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
 
     # make the bike unavailable
     query = """
     UPDATE Bike SET is_available = FALSE WHERE id = {bike_id};"""
     query = query.format(bike_id=data['bike_id'])
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
     return Response({'message': 'Bike booked successfully'})
-
-
-@api_view(['POST'])
-@is_authenticated
-def end_ride(request):
-    """
-    This function is used to end a ride
-    """
-    # get the data from the request
-    data = request.data
-
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
-
-    # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
-    # end the ride
-    query = """
-    UPDATE BookingSchedule SET end_time = '{end_time}' WHERE user_id = {user_id} AND bike_id = {bike_id} AND end_time IS NULL;"""
-    query = query.format(user_id=user_id, bike_id=data['bike_id'], end_time=data['end_time'])
-    cursor.execute(query)
-    connection.commit()
-    conn.close_connection()
-
-    # make the bike available
-    query = """
-    UPDATE Bike SET is_available = TRUE WHERE id = {bike_id};"""
-    query = query.format(bike_id=data['bike_id'])
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    connection.commit()
-    conn.close_connection()
-
-    # calculate total amount based on time
-    query = """
-    SELECT rate FROM Rate WHERE bike_id = {bike_id};"""
-    query = query.format(bike_id=data['bike_id'])
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    rate = result[0][0]
-    conn.close_connection()
-
-    # time = current time - start time
-    start_time_query = """
-    SELECT start_time FROM BookingSchedule WHERE user_id = {user_id} AND bike_id = {bike_id} AND end_time IS NULL;"""
-    start_time_query = start_time_query.format(user_id=user_id, bike_id=data['bike_id'])
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute(start_time_query)
-    result = cursor.fetchall()
-    start_time = result[0][0]
-    conn.close_connection()
-
-    # calculate total amount
-    total_amount = rate * (data['end_time'] - start_time)
-    data['total_amount'] = total_amount
-    # deduct the amount from the card
-    query = """
-    UPDATE BikeCard SET balance = balance - {total_amount} WHERE user_id = {user_id};"""
-    query = query.format(total_amount=total_amount, user_id=user_id)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    connection.commit()
-    conn.close_connection()
-
-    data["amount_deducted"] = total_amount
-
-    # save the payment history
-    query = """
-    INSERT INTO PaymentHistory (user_id, amount, start_time, end_time) VALUES ({user_id}, {total_amount}, '{start_time}', '{end_time}');"""
-    query = query.format(user_id=user_id, total_amount=total_amount, start_time=start_time, end_time=data['end_time'])
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
-    cursor.execute(query)
-    connection.commit()
-    conn.close_connection()
-
-    return Response({'message': 'Ride ended successfully'})
 
 
 @api_view(['POST'])
@@ -564,20 +451,19 @@ def give_feedback(request):
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     rating = data['rating']
 
-
     cursor, conn, connection = get_cursor()
     query = """
     INSERT INTO Feedback (Rating, Comments, UserID, BikeID, Timestamp, StartStationID, EndStationID) VALUES ({rating}, '{feedback}', {user_id}, {bike_id}, '{timestamp}', {start_station_id}, {end_station_id});"""
-    query = query.format(rating=rating, feedback=feedback, user_id=user_id, bike_id=bikeID, timestamp=timestamp, start_station_id=start_station_id, end_station_id=end_station_id)
+    query = query.format(rating=rating, feedback=feedback, user_id=user_id, bike_id=bikeID,
+                         timestamp=timestamp, start_station_id=start_station_id, end_station_id=end_station_id)
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
     your_feedback = {
         "rating": rating,
         "comments": feedback,
         "timestamp": timestamp
     }
-    return Response({'message': 'Feedback given successfully','data':your_feedback})
+    return Response({'message': 'Feedback given successfully', 'data': your_feedback})
 
 
 @api_view(['GET'])
@@ -589,16 +475,14 @@ def get_payment_history(request):
 
     # get the user id
     user_id = request.user_id
-    cursor , conn, connection = get_cursor()
+    cursor, conn, connection = get_cursor()
     # get the payment history
     query = """
     SELECT * FROM PaymentHistory WHERE user_id = {user_id};"""
     query = query.format(user_id=user_id)
     cursor.execute(query)
     result = cursor.fetchall()
-    conn.close_connection()
     return Response(result)
-
 
 
 @api_view(['GET'])
@@ -616,9 +500,7 @@ def get_payment_history(request):
     query = """
     SELECT id FROM User WHERE token = '{token}';"""
     query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     user_id = result[0][0]
@@ -629,7 +511,6 @@ def get_payment_history(request):
     query = query.format(user_id=user_id)
     cursor.execute(query)
     result = cursor.fetchall()
-    conn.close_connection()
     return Response(result)
 
 
@@ -648,9 +529,7 @@ def get_location_history(request):
     query = """
     SELECT id FROM User WHERE token = '{token}';"""
     query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     user_id = result[0][0]
@@ -661,10 +540,7 @@ def get_location_history(request):
     query = query.format(user_id=user_id)
     cursor.execute(query)
     result = cursor.fetchall()
-    conn.close_connection()
     return Response(result)
-
-
 
 
 # Get Bike Details:
@@ -683,9 +559,7 @@ def get_bike_details(request):
     query = """
     SELECT id FROM User WHERE token = '{token}';"""
     query = query.format(token=token)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     user_id = result[0][0]
@@ -695,9 +569,7 @@ def get_bike_details(request):
     SELECT * FROM Bike;"""
     cursor.execute(query)
     result = cursor.fetchall()
-    conn.close_connection()
     return Response(result)
-
 
 
 # API to move a bike to maintenance
@@ -710,17 +582,15 @@ def move_to_maintenance(request):
     # get the data from the request
     data = request.data
 
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
 
     # move the bike to maintenance
     query = """
     INSERT INTO MaintenanceRecord (DateOfMaintenance, Details, BikeID) VALUES ('{date_of_maintenance}', '{details}', {bike_id});"""
-    query = query.format(date_of_maintenance=data['date_of_maintenance'], details=data['details'], bike_id=data['bike_id'])
+    query = query.format(
+        date_of_maintenance=data['date_of_maintenance'], details=data['details'], bike_id=data['bike_id'])
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
     return Response({'message': 'Bike moved to maintenance successfully'})
 
 
@@ -734,24 +604,24 @@ def get_maintenance_records(request):
     # get the data from the request
     data = request.data
 
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
 
     # get the maintenance records
-     # based on filers sent in the request
+    # based on filers sent in the request
     query = """
     SELECT * FROM MaintenanceRecord WHERE 1=1 """
     if 'bike_id' in data:
         query += " AND BikeID = {bike_id}".format(bike_id=data['bike_id'])
     if 'date_of_maintenance' in data:
-        query += " AND DateOfMaintenance = '{date_of_maintenance}'".format(date_of_maintenance=data['date_of_maintenance'])
+        query += " AND DateOfMaintenance = '{date_of_maintenance}'".format(
+            date_of_maintenance=data['date_of_maintenance'])
     cursor.execute(query)
     result = cursor.fetchall()
-    conn.close_connection()
     return Response(result)
 
 # remove bike from maintenance
+
+
 @api_view(['POST'])
 @is_authenticated
 def remove_from_maintenance(request):
@@ -761,9 +631,7 @@ def remove_from_maintenance(request):
     # get the data from the request
     data = request.data
 
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
 
     # remove the bike from maintenance
     query = """
@@ -771,7 +639,6 @@ def remove_from_maintenance(request):
     query = query.format(bike_id=data['bike_id'])
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
     return Response({'message': 'Bike removed from maintenance successfully'})
 
 
@@ -789,7 +656,8 @@ def get_estimated_cost(request):
 
     cursor, conn, connection = get_cursor()
     # Call the stored procedure to calculate the rental cost
-    cursor.execute("CALL CalculateRentalCostSelect(%s, %s);", [bike_id, minutes])
+    cursor.execute("CALL CalculateRentalCostSelect(%s, %s);",
+                   [bike_id, minutes])
     result = cursor.fetchone()
 
     # Check if the procedure returned a result
@@ -799,6 +667,8 @@ def get_estimated_cost(request):
     else:
         return Response({'error': 'No data returned from the procedure'}, status=404)
 
+
+# transaction history of the user
 
 # transaction history of the user
 
@@ -817,7 +687,8 @@ def start_ride(request):
     # insert into booking schedule
     query = """
     INSERT INTO BookingSchedule (StartDate, UserID, BikeID, StartStationID, EndStationID) VALUES ('{start_time}', {user_id}, {bike_id}, {start_station_id}, {end_station_id});"""
-    query = query.format(start_time=start_time, user_id=user_id, bike_id=bike_id, start_station_id=start_station_id, end_station_id=end_station_id)
+    query = query.format(start_time=start_time, user_id=user_id, bike_id=bike_id,
+                         start_station_id=start_station_id, end_station_id=end_station_id)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
@@ -828,7 +699,8 @@ def start_ride(request):
     # fetch the schedule id
     query = """
     SELECT ScheduleID FROM BookingSchedule WHERE UserID = {user_id} AND BikeID = {bike_id} AND StartDate = '{start_time}';"""
-    query = query.format(user_id=user_id, bike_id=bike_id, start_time=start_time)
+    query = query.format(user_id=user_id, bike_id=bike_id,
+                         start_time=start_time)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
@@ -852,7 +724,8 @@ def end_ride(request):
     # update the booking schedule
     query = """
     UPDATE BookingSchedule SET EndDate = '{end_time}' WHERE ScheduleID = {ride_id} AND UserID = {user_id} AND BikeID = {bike_id};"""
-    query = query.format(end_time=end_time, ride_id=ride_id, user_id=user_id, bike_id=bike_id)
+    query = query.format(end_time=end_time, ride_id=ride_id,
+                         user_id=user_id, bike_id=bike_id)
     conn = MySQLConnector()
     connection = conn.get_connection()
     cursor = connection.cursor()
@@ -871,7 +744,8 @@ def end_ride(request):
 
     # Convert start_time to datetime if it is a string
     if isinstance(start_time, str):
-        start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        start_time = datetime.datetime.strptime(
+            start_time, '%Y-%m-%d %H:%M:%S')
 
     # Convert end_time to datetime if it is a string
     if isinstance(end_time, str):
@@ -901,18 +775,19 @@ def end_ride(request):
     if result:
         query = """
         UPDATE Ebike SET Bike_range = Bike_range - {time_consumed_in_minutes}  WHERE BikeID = {bike_id};"""
-        query = query.format(bike_id=bike_id, time_consumed_in_minutes=time_consumed_in_minutes)
+        query = query.format(
+            bike_id=bike_id, time_consumed_in_minutes=time_consumed_in_minutes)
         conn = MySQLConnector()
         connection = conn.get_connection()
         cursor = connection.cursor()
         cursor.execute(query)
         connection.commit()
         conn.close_connection()
-    return Response({'message': 'Ride ended successfully', 'ScheduleID': result[0][0]})
+    return Response({'message': 'Ride ended successfully'})
 
-# make payment api
-@api_view(['POST'])
-@is_authenticated
+
+@ api_view(['POST'])
+@ is_authenticated
 def make_payment(request):
     data = request.data
     user_id = request.user_id
@@ -925,17 +800,16 @@ def make_payment(request):
     query = """
     INSERT INTO Transaction (Cost, ScheduleID, UserID) VALUES ({Cost}, {ScheduleID}, {UserID});"""
     query = query.format(Cost=amount, ScheduleID=schedule_id, UserID=user_id)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     connection.commit()
-    conn.close_connection()
     return Response({'message': 'Payment made successfully'})
 
 # get all payment history
-@api_view(['GET'])
-@is_authenticated
+
+
+@ api_view(['GET'])
+@ is_authenticated
 def get_payment_history(request):
     user_id = request.user_id
     # get the payment history
@@ -948,9 +822,7 @@ def get_payment_history(request):
     WHERE t.UserID = {user_id}
     order by b.StartDate desc;"""
     query = query.format(user_id=user_id)
-    conn = MySQLConnector()
-    connection = conn.get_connection()
-    cursor = connection.cursor()
+    cursor, conn, connection = get_cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     conn.close_connection()
@@ -973,8 +845,9 @@ def get_payment_history(request):
         payments.append(payment)
     return Response(payments)
 
-@api_view(['DELETE'])
-@is_authenticated
+
+@ api_view(['POST'])
+@ is_authenticated
 def delete_transaction(request):
     """
     This function is used to delete a user
@@ -991,7 +864,3 @@ def delete_transaction(request):
     connection.commit()
     conn.close_connection()
     return Response({'message': 'Transaction deleted successfully'})
-
-
-
-
