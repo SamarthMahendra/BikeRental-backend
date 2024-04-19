@@ -16,6 +16,7 @@ from .sqlconnector import MySQLConnector, get_cursor
 
 from .create_table_script import create_tables
 
+
 # write a decorator to check if the user is authenticated
 
 
@@ -42,6 +43,7 @@ def is_authenticated(func):
         request.user_id = result[0][0]
         request.user_name = result[0][1]
         return func(request, *args, **kwargs)
+
     return wrapper
 
 
@@ -366,6 +368,7 @@ def get_balance(request):
     }
     return Response(res)
 
+
 # add balance to card post request
 
 
@@ -452,66 +455,27 @@ def give_feedback(request):
     rating = data['rating']
 
     cursor, conn, connection = get_cursor()
+    # get schedule id using bike id, user id, start station id, end station id
     query = """
-    INSERT INTO Feedback (Rating, Comments, UserID, BikeID, Timestamp, StartStationID, EndStationID) VALUES ({rating}, '{feedback}', {user_id}, {bike_id}, '{timestamp}', {start_station_id}, {end_station_id});"""
-    query = query.format(rating=rating, feedback=feedback, user_id=user_id, bike_id=bikeID,
-                         timestamp=timestamp, start_station_id=start_station_id, end_station_id=end_station_id)
+    SELECT ScheduleID FROM BookingSchedule WHERE UserID = {user_id} AND BikeID = {bike_id} AND StartStationID = {start_station_id} AND EndStationID = {end_station_id};"""
+    query = query.format(user_id=user_id, bike_id=bikeID,
+                         start_station_id=start_station_id, end_station_id=end_station_id)
+    cursor.execute(query)
+    result = cursor.fetchall()
+    schedule_id = result[0][0]
+
+    query = """insert into feedback (Rating, Comments, RideID, Timestamp) values ({rating}, '{feedback}', {schedule_id}, '{timestamp}');"""
+    query = query.format(rating=rating, feedback=feedback,
+                         schedule_id=schedule_id, timestamp=timestamp)
     cursor.execute(query)
     connection.commit()
+    conn.close_connection()
     your_feedback = {
         "rating": rating,
         "comments": feedback,
         "timestamp": timestamp
     }
     return Response({'message': 'Feedback given successfully', 'data': your_feedback})
-
-
-@api_view(['GET'])
-@is_authenticated
-def get_payment_history(request):
-    """
-    This function is used to get the payment history
-    """
-
-    # get the user id
-    user_id = request.user_id
-    cursor, conn, connection = get_cursor()
-    # get the payment history
-    query = """
-    SELECT * FROM PaymentHistory WHERE user_id = {user_id};"""
-    query = query.format(user_id=user_id)
-    cursor.execute(query)
-    result = cursor.fetchall()
-    return Response(result)
-
-
-@api_view(['GET'])
-@is_authenticated
-def get_payment_history(request):
-    """
-    This function is used to get the payment history
-    """
-    # get the user id from the token
-    token = request.headers['Authorization']
-    token = token.split(' ')[1]
-    user_name = jwt.decode(token, 'SECRET_KEY', algorithms=['HS256'])['name']
-
-    # get the user id
-    query = """
-    SELECT id FROM User WHERE token = '{token}';"""
-    query = query.format(token=token)
-    cursor, conn, connection = get_cursor()
-    cursor.execute(query)
-    result = cursor.fetchall()
-    user_id = result[0][0]
-
-    # get the payment history
-    query = """
-    SELECT * FROM PaymentHistory WHERE user_id = {user_id};"""
-    query = query.format(user_id=user_id)
-    cursor.execute(query)
-    result = cursor.fetchall()
-    return Response(result)
 
 
 @api_view(['GET'])
@@ -618,6 +582,7 @@ def get_maintenance_records(request):
     cursor.execute(query)
     result = cursor.fetchall()
     return Response(result)
+
 
 # remove bike from maintenance
 
@@ -786,8 +751,8 @@ def end_ride(request):
     return Response({'message': 'Ride ended successfully'})
 
 
-@ api_view(['POST'])
-@ is_authenticated
+@api_view(['POST'])
+@is_authenticated
 def make_payment(request):
     data = request.data
     user_id = request.user_id
@@ -805,11 +770,12 @@ def make_payment(request):
     connection.commit()
     return Response({'message': 'Payment made successfully'})
 
+
 # get all payment history
 
 
-@ api_view(['GET'])
-@ is_authenticated
+@api_view(['GET'])
+@is_authenticated
 def get_payment_history(request):
     user_id = request.user_id
     # get the payment history
@@ -846,8 +812,8 @@ def get_payment_history(request):
     return Response(payments)
 
 
-@ api_view(['POST'])
-@ is_authenticated
+@api_view(['POST'])
+@is_authenticated
 def delete_transaction(request):
     """
     This function is used to delete a user

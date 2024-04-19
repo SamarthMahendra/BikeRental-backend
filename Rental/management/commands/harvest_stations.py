@@ -41,15 +41,16 @@ class Command(BaseCommand):
             location_lon = station['location']['lng']
             capacity = station['bikeDocksAvailable']
             address = station['stationName']
-            # save the station to the database
-            Stations.objects.create(
-                StationID=station_id,
-                Locatiion_lat=location_lat,
-                Locatiion_lon=location_lon,
-                Capacity=capacity,
-                StationName=station_name,
-                Address=address
-            )
+            query ="""
+            INSERT INTO Stations (StationID, Locatiion_lat, Locatiion_lon, Capacity, StationName, Address)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            conn = MySQLConnector()
+            connection = conn.get_connection()
+            cursor = connection.cursor()
+            cursor.execute(query, (station_id, location_lat, location_lon, capacity, station_name, address))
+            connection.commit()
+            conn.close_connection()
         print("Stations harvested successfully.")
 
 

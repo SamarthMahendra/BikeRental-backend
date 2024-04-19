@@ -21,19 +21,6 @@ class User(models.Model):
 
 
 
-# create model using this schema
-# -- bikerental.maintenancerecord definition
-#
-# CREATE TABLE `maintenancerecord` (
-#   `RecordID` int NOT NULL AUTO_INCREMENT,
-#   `DateOfMaintenance` date DEFAULT NULL,
-#   `Details` varchar(255) DEFAULT NULL,
-#   `BikeID` int DEFAULT NULL,
-#   PRIMARY KEY (`RecordID`),
-#   KEY `BikeID` (`BikeID`),
-#   CONSTRAINT `maintenancerecord_ibfk_1` FOREIGN KEY (`BikeID`) REFERENCES `bike` (`BikeID`)
-# ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb3;
-
 class MaintenanceRecord(models.Model):
     RecordID = models.AutoField(primary_key=True)
     DateOfMaintenance = models.DateField()
@@ -48,18 +35,6 @@ class MaintenanceRecord(models.Model):
         db_table = 'maintenancerecord'
 
 
-
-# -- bikerental.stations definition
-#
-# CREATE TABLE `stations` (
-#   `StationID` int NOT NULL,
-#   `Locatiion_lat` varchar(64) DEFAULT NULL,
-#   `Locatiion_lon` varchar(64) DEFAULT NULL,
-#   `Capacity` int DEFAULT NULL,
-#   `StationName` varchar(255) DEFAULT NULL,
-#   `Address` text,
-#   PRIMARY KEY (`StationID`)
-# ) ENGINE=InnoDB DEFAULT
 
 class Stations(models.Model):
     StationID = models.AutoField(primary_key=True)
@@ -108,30 +83,29 @@ class Ebike(models.Model):
         db_table = 'ebike'
 
 
+class BookingSchedule(models.Model):
+    ScheduleID = models.AutoField(primary_key=True)
+    StartDate = models.DateTimeField()
+    EndDate = models.DateTimeField()
+    UserID = models.ForeignKey('User', on_delete=models.CASCADE, db_column='UserID')
+    BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
+    StartStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='StartStationID', related_name='start_station')
+    EndStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='EndStationID', related_name='end_station')
+
+    def __str__(self):
+        return str("Booking ID: " + str(self.ScheduleID) + " User ID: " + str(self.UserID) + " Bike ID: " + str(self.BikeID) + " Start Station: " + str(self.StartStationID) + " End Station: " + str(self.EndStationID) + " Start Date: " + str(self.StartDate) + " End Date: " + str(self.EndDate) + " ")
+
+    class Meta:
+        app_label = 'Rental'
+        db_table = 'bookingschedule'
+
 
 class Feedback(models.Model):
     FeedbackID = models.AutoField(primary_key=True)
     Rating = models.IntegerField()
     Comments = models.CharField(max_length=1024)
-    UserID = models.ForeignKey(
-        'User', on_delete=models.CASCADE, db_column='UserID')
-    BikeID = models.ForeignKey(
-        'Bike', on_delete=models.CASCADE, db_column='BikeID')
+    RideID = models.ForeignKey('BookingSchedule', on_delete=models.CASCADE, db_column='ScheduleID')
     Timestamp = models.DateTimeField(auto_now_add=True)
-    StartStationID = models.ForeignKey(
-        'Stations',
-        on_delete=models.CASCADE,
-        db_column='StartStationID',
-        # Unique related name for feedbacks starting at this station
-        related_name='start_feedbacks'
-    )
-    EndStationID = models.ForeignKey(
-        'Stations',
-        on_delete=models.CASCADE,
-        db_column='EndStationID',
-        # Unique related name for feedbacks ending at this station
-        related_name='end_feedbacks'
-    )
 
     def __str__(self):
         return str(self.FeedbackID)
@@ -139,3 +113,18 @@ class Feedback(models.Model):
     class Meta:
         app_label = 'Rental'
         db_table = 'feedback'
+
+class StationRevenueSummary(models.Model):
+    StationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='StationID', primary_key=True)
+    StationName = models.CharField(max_length=255)
+    TotalRides = models.IntegerField(default=0)
+    TotalEBikeRides = models.IntegerField(default=0)
+    TotalClassicBikeRides = models.IntegerField(default=0)
+    TotalRevenue = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    def __str__(self):
+        return str(self.StationID)
+
+    class Meta:
+        app_label = 'Rental'
+        db_table = 'station_revenue_summary'

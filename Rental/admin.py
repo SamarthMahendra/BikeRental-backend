@@ -1,30 +1,17 @@
+from .models import User, Stations, Ebike, Feedback, StationRevenueSummary
+
+
+from django.http import HttpResponseRedirect
+from django.contrib import admin
+from django.urls import path, reverse
+from django.utils.html import format_html
+from django.shortcuts import redirect
+from django.contrib import messages
+from .models import Bike, MaintenanceRecord
 from datetime import date
-
-from django.contrib import admin
-
-from django.contrib import admin
-from .models import User, MaintenanceRecord, Stations, Bike, Ebike, Feedback
-
-# Register your models here.
-
-from django.contrib import admin
 
 # Set the site header
 admin.site.site_header = 'Blue Bikes Rental Administration'
-
-
-from django.contrib import admin
-from django.urls import path
-from django.http import HttpResponseRedirect
-from .models import MaintenanceRecord
-
-from django.contrib import admin
-from django.urls import path
-from django.http import HttpResponseRedirect
-from django.utils.html import format_html
-from django.urls import reverse
-from .models import MaintenanceRecord
-
 @admin.register(MaintenanceRecord)
 class MaintenanceRecordAdmin(admin.ModelAdmin):
     list_display = ('RecordID', 'DateOfMaintenance', 'Details', 'BikeID', 'mark_done_link')  # Updated to use the link method
@@ -68,13 +55,6 @@ class StationsAdmin(admin.ModelAdmin):
     list_display = ('StationID', 'Locatiion_lat', 'Locatiion_lon', 'Capacity', 'StationName', 'Address')
     search_fields = ('StationName',)
     list_filter = ('Capacity',)
-from django.contrib import admin
-from django.urls import path, reverse
-from django.utils.html import format_html
-from django.shortcuts import redirect
-from django.contrib import messages
-from .models import Bike, MaintenanceRecord
-from datetime import date
 
 @admin.register(Bike)
 class BikeAdmin(admin.ModelAdmin):
@@ -118,11 +98,6 @@ class BikeAdmin(admin.ModelAdmin):
 
     maintenance_link.short_description = 'Maintenance Actions'
     maintenance_link.allow_tags = True
-
-# Ensure to update other relevant parts of your Django project as necessary.
-# my_row_id = models.AutoField(primary_key=True)
-#     BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
-#     Bike_range = models.IntegerField()
 @admin.register(Ebike)
 class EbikeAdmin(admin.ModelAdmin):
     list_display = ('my_row_id', 'BikeID', 'Bike_range')
@@ -130,29 +105,21 @@ class EbikeAdmin(admin.ModelAdmin):
     list_filter = ('Bike_range',)
 
 
-# class Feedback(models.Model):
-#     FeedbackID = models.AutoField(primary_key=True)
-#     Rating = models.IntegerField()
-#     Comments = models.CharField(max_length=1024)
-#     UserID = models.ForeignKey('User', on_delete=models.CASCADE, db_column='UserID')
-#     BikeID = models.ForeignKey('Bike', on_delete=models.CASCADE, db_column='BikeID')
-#     Timestamp = models.DateTimeField(auto_now_add=True)
-#     StartStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='StartStationID')
-#     EndStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='EndStationID')
-#
-#     def __str__(self):
-#         return str(self.FeedbackID)
-#
-#     class Meta:
-#         app_label = 'Rental'
-#         db_table = 'feedback'
+
+from django.contrib import admin
+from .models import Feedback, BookingSchedule  # Make sure to import your models
 
 @admin.register(Feedback)
 class FeedbackAdmin(admin.ModelAdmin):
-    list_display = ('FeedbackID', 'Rating', 'Comments', 'UserID', 'BikeID', 'Timestamp', 'StartStationID', 'EndStationID')
+    list_display = ('FeedbackID', 'Rating', 'Comments', 'RideID', 'Timestamp')
     search_fields = ('Comments',)
     list_filter = ('Rating', 'Timestamp')
 
+@admin.register(BookingSchedule)
+class BookingScheduleAdmin(admin.ModelAdmin):
+    list_display = ('ScheduleID', 'StartDate', 'EndDate', 'UserID', 'BikeID', 'StartStationID', 'EndStationID')
+    search_fields = ('UserID',)
+    list_filter = ('StartDate', 'EndDate')
 
 
 @admin.register(User)
@@ -160,5 +127,11 @@ class UserAdmin(admin.ModelAdmin):
     list_display = ('UserID', 'username', 'email', 'password', 'token', 'is_active', 'created_at', 'updated_at')
     search_fields = ('username',)
     list_filter = ('is_active', 'created_at', 'updated_at')
+
+@admin.register(StationRevenueSummary)
+class StationRevenueSummaryAdmin(admin.ModelAdmin):
+    list_display = ('StationID', 'StationName', 'TotalRides', 'TotalEBikeRides', 'TotalClassicBikeRides', 'TotalRevenue')
+    search_fields = ('StationName',)
+    list_filter = ('TotalRides', 'TotalEBikeRides', 'TotalClassicBikeRides', 'TotalRevenue')
 
 
