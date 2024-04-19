@@ -111,7 +111,7 @@ from .models import Feedback, BookingSchedule  # Make sure to import your models
 
 @admin.register(Feedback)
 class FeedbackAdmin(admin.ModelAdmin):
-    list_display = ('FeedbackID', 'Rating', 'Comments', 'RideID', 'Timestamp')
+    list_display = ('FeedbackID', 'Rating', 'Comments', 'Timestamp', 'ScheduleID')  # Added 'ScheduleID' to the list_display
     search_fields = ('Comments',)
     list_filter = ('Rating', 'Timestamp')
 

@@ -93,7 +93,7 @@ class BookingSchedule(models.Model):
     EndStationID = models.ForeignKey('Stations', on_delete=models.CASCADE, db_column='EndStationID', related_name='end_station')
 
     def __str__(self):
-        return str("Booking ID: " + str(self.ScheduleID) + " User ID: " + str(self.UserID) + " Bike ID: " + str(self.BikeID) + " Start Station: " + str(self.StartStationID) + " End Station: " + str(self.EndStationID) + " Start Date: " + str(self.StartDate) + " End Date: " + str(self.EndDate) + " ")
+         return str( "UserID: " + str(self.UserID) + " BikeID: " + str(self.BikeID) + " StartStationID: " + str(self.StartStationID) + " EndStationID: " + str(self.EndStationID))
 
     class Meta:
         app_label = 'Rental'
@@ -104,7 +104,7 @@ class Feedback(models.Model):
     FeedbackID = models.AutoField(primary_key=True)
     Rating = models.IntegerField()
     Comments = models.CharField(max_length=1024)
-    RideID = models.ForeignKey('BookingSchedule', on_delete=models.CASCADE, db_column='ScheduleID')
+    ScheduleID = models.ForeignKey('BookingSchedule', on_delete=models.CASCADE, db_column='ScheduleID', related_name='ride')
     Timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
